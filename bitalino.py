@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""
+'''
 .. module:: bitalino
    :synopsis: BITalino API
 
-*Created on Fri Jun 20 2014*
-
-*Last Modified on Thur Jun 25 2015*
-"""
+* Created on Fri Jun 20 2014*
+* Forked from https://github.com/BITalinoWorld/python-api.git
+  on Sat Nov 28 2015
+'''
 
 from __future__ import print_function
 
@@ -19,12 +19,13 @@ import struct
 import time
 import select
 
+
 def find():
-    """
+    '''
     :returns: list of (tuples) with name and MAC address of each device found
 
     Searches for bluetooth devices nearby.
-    """
+    '''
     if platform.system() == 'Windows' or platform.system() == 'Linux':
         import bluetooth
         nearby_devices = bluetooth.discover_devices(lookup_names=True)
@@ -32,44 +33,52 @@ def find():
     else:
         raise Exception(ExceptionCode.INVALID_PLATFORM)
 
+
 class ExceptionCode():
     INVALID_ADDRESS = "The specified address is invalid."
-    INVALID_PLATFORM= "This platform does not support bluetooth connection."
+    INVALID_PLATFORM = "This platform does not support bluetooth connection."
     CONTACTING_DEVICE = "The computer lost communication with the device."
     DEVICE_NOT_IDLE = "The device is not idle."
     DEVICE_NOT_IN_ACQUISITION = "The device is not in acquisition mode."
     INVALID_PARAMETER = "Invalid parameter."
     INVALID_VERSION = "Only available for Bitalino 2.0."
 
+
 class BITalino(object):
-    """
-    :param macAddress: MAC address or serial port for the bluetooth device
+    ''':param macAddress: MAC address or serial port for the bluetooth device
     :type macAddress: str
-    :param timeout: maximum amount of time (seconds) elapsed while waiting for the device to respond
+    :param timeout: maximum amount of time (seconds) elapsed while waiting
+        for the device to respond
     :type timeout: int, float or None
     :raises Exception: invalid MAC address or serial port
     :raises Exception: invalid timeout value
 
-    Connects to the bluetooth device with the MAC address or serial port provided.
+    Connects to the bluetooth device with the MAC address
+    or serial port provided.
 
     Possible values for parameter *macAddress*:
 
     * MAC address: e.g. ``00:0a:95:9d:68:16``
-    * Serial port - device name: depending on the operating system. e.g. ``COM3`` on Windows; ``/dev/tty.bitalino-DevB`` on Mac OS X; ``/dev/ttyUSB0`` on GNU/Linux.
+    * Serial port - device name: depending on the operating system. e.g.:
+         ``COM3`` on Windows;
+         ``/dev/tty.bitalino-DevB`` on Mac OS X;
+         ``/dev/ttyUSB0`` on GNU/Linux.
 
     Possible values for *timeout*:
 
-    ===============  ================================================================
+    ===============  ==========================================================
     Value            Result
-    ===============  ================================================================
+    ===============  ==========================================================
     None             Wait forever
-    X                Wait X seconds for a response and raises a connection Exception
-    ===============  ================================================================
-    """
-    def __init__(self, macAddress, timeout = None):
-        regCompiled = re.compile('^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$');
-        checkMatch = re.match(regCompiled, macAddress);
-        self.blocking = True if timeout == None else False
+    X                Wait X seconds for a response and raises
+                     a connection Exception
+    ===============  ==========================================================
+    '''
+
+    def __init__(self, macAddress, timeout=None):
+        regCompiled = re.compile('^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$')
+        checkMatch = re.match(regCompiled, macAddress)
+        self.blocking = True if timeout is None else False
         if not self.blocking:
             try:
                 self.timeout = float(timeout)
@@ -83,7 +92,9 @@ class BITalino(object):
                 self.serial = False
             else:
                 raise Exception(ExceptionCode.INVALID_PLATFORM)
-        elif (macAddress[0:3] == 'COM' and platform.system() == 'Windows') or (macAddress[0:5] == '/dev/' and platform.system() != 'Windows'):
+        elif (macAddress.startswith('COM')
+              if platform.system() == 'Windows'
+              else macAddress.startswith('/dev/')):
             self.socket = serial.Serial(macAddress, 115200)
             self.serial = True
         else:
@@ -99,8 +110,8 @@ class BITalino(object):
             version_nbr = float(version.split(split_string_old)[1][:3])
         self.isBitalino2 = True if version_nbr >= 4.2 else False
 
-    def start(self, SamplingRate = 1000, analogChannels = [0, 1, 2, 3, 4, 5]):
-        """
+    def start(self, SamplingRate=1000, analogChannels=[0, 1, 2, 3, 4, 5]):
+        '''
         :param SamplingRate: sampling frequency (Hz)
         :type SamplingRate: int
         :param analogChannels: channels to be acquired
@@ -109,8 +120,10 @@ class BITalino(object):
         :raises Exception: sampling rate not valid
         :raises Exception: list of analog channels not valid
 
-        Sets the sampling rate and starts acquisition in the analog channels set.
-        Setting the sampling rate and starting the acquisition implies the use of the method :meth:`send`.
+        Sets the sampling rate and starts acquisition in the analog
+        channels set.
+        Setting the sampling rate and starting the acquisition implies the use
+        of the method :meth:`send`.
 
         Possible values for parameter *SamplingRate*:
 
@@ -119,7 +132,8 @@ class BITalino(object):
         * 100
         * 1000
 
-        Possible values, types, configurations and examples for parameter *analogChannels*:
+        Possible values, types, configurations and examples for
+        parameter *analogChannels*:
 
         ===============  ====================================
         Values           0, 1, 2, 3, 4, 5
@@ -129,8 +143,8 @@ class BITalino(object):
         ===============  ====================================
 
         .. note:: To obtain the samples, use the method :meth:`read`.
-        """
-        if (self.started == False):
+        '''
+        if not self.started:
             if int(SamplingRate) not in [1, 10, 100, 1000]:
                 raise Exception(ExceptionCode.INVALID_PARAMETER)
 
@@ -155,15 +169,20 @@ class BITalino(object):
 
             analogChannels = list(set(analogChannels))
 
-            if len(analogChannels) == 0 or len(analogChannels) > 6 or any([item not in range(6) or type(item)!=int for item in analogChannels]):
+            try:
+                assert analogChannels  # not empty
+                assert len(analogChannels) <= 6
+                assert all(ch in range(6) for ch in analogChannels)
+                assert all(isinstance(ch, int) for ch in analogChannels)
+            except AssertionError:
                 raise Exception(ExceptionCode.INVALID_PARAMETER)
 
-            self.send((commandSRate << 6)| 0x03)
+            self.send((commandSRate << 6) | 0x03)
 
             # CommandStart: A6 A5 A4 A3 A2 A1 0  1
             commandStart = 1
             for i in analogChannels:
-                commandStart = commandStart | 1<<(2+i)
+                commandStart = commandStart | 1 << (2 + i)
 
             self.send(commandStart)
             self.started = True
@@ -172,16 +191,18 @@ class BITalino(object):
             raise Exception(ExceptionCode.DEVICE_NOT_IDLE)
 
     def stop(self):
-        """
+        '''
         :raises Exception: device not in acquisition (IDLE)
 
-        Stops the acquisition. Stoping the acquisition implies the use of the method :meth:`send`.
-        """
+        Stops the acquisition. Stoping the acquisition implies the use of
+        the method :meth:`send`.
+        '''
         if (self.started):
             self.send(0)
         else:
             if self.isBitalino2:
-                # Command: 1  1  1  1  1  1  1  1 - Go to idle mode from all modes.
+                # Command: 1  1  1  1  1  1  1  1
+                # - Go to idle mode from all modes.
                 self.send(255)
             else:
                 raise Exception(ExceptionCode.DEVICE_NOT_IN_ACQUISITION)
@@ -189,15 +210,15 @@ class BITalino(object):
         self.version()
 
     def close(self):
-        """
+        '''
         Closes the bluetooth or serial port socket.
-        """
+        '''
         self.socket.close()
 
     def send(self, data):
-        """
+        '''
         Sends a command to the BITalino device.
-        """
+        '''
         time.sleep(0.1)
         if self.serial:
             self.socket.write(chr(data))
@@ -205,13 +226,14 @@ class BITalino(object):
             self.socket.send(chr(data))
 
     def battery(self, value=0):
-        """
+        '''
         :param value: threshold value
         :type value: int
         :raises Exception: device in acquisition (not IDLE)
         :raises Exception: threshold value is invalid
 
-        Sets the battery threshold for the BITalino device. Setting the battery threshold implies the use of the method :meth:`send`.
+        Sets the battery threshold for the BITalino device. Setting the battery
+        threshold implies the use of the method :meth:`send`.
 
         Possible values for parameter *value*:
 
@@ -221,8 +243,8 @@ class BITalino(object):
         Minimum *value*  0        3.4 Volts
         Maximum *value*  63       3.8 Volts
         ===============  =======  =====================
-        """
-        if (self.started == False):
+        '''
+        if self.started:
             if 0 <= int(value) <= 63:
                 # CommandBattery: <bat   threshold> 0  0
                 commandBattery = int(value) << 2
@@ -232,17 +254,18 @@ class BITalino(object):
         else:
             raise Exception(ExceptionCode.DEVICE_NOT_IDLE)
 
-    def pwm(self, pwmOutput = 100):
-        """
+    def pwm(self, pwmOutput=100):
+        '''
         :param pwmOutput: value for the pwm output
         :type pwmOutput: int
         :raises Exception: invalid pwm output value
         :raises Exception: device is not a BITalino 2.0
 
-        Sets the pwm output for the BITalino 2.0 device. Implies the use of the method :meth:`send`.
+        Sets the pwm output for the BITalino 2.0 device.
+        Implies the use of the method :meth:`send`.
 
         Possible values for parameter *pwmOutput*: 0 - 255.
-        """
+        '''
         if (self.isBitalino2):
             if 0 <= int(pwmOutput) <= 255:
                 self.send(163)
@@ -253,14 +276,18 @@ class BITalino(object):
             raise Exception(ExceptionCode.INVALID_VERSION)
 
     def state(self):
-        """
+        '''
         :returns: dictionary with the state of all channels
         :raises Exception: device is not a BITalino version 2.0
         :raises Exception: device in acquisition (not IDLE)
-        :raises Exception: lost communication with the device when data is corrupted
+        :raises Exception: lost communication with the device when
+            data is corrupted
 
-        Returns the state of all analog and digital channels. Reading channel State from BITalino implies the use of the method :meth:`send` and :meth:`receive`.
-        The returned dictionary structure contains the following key-value pairs:
+        Returns the state of all analog and digital channels.
+        Reading channel State from BITalino implies the use of
+        the method :meth:`send` and :meth:`receive`.
+        The returned dictionary structure contains the following
+        key-value pairs:
 
         =================  ================================ ============== =====================
         Key                Value                            Type           Examples
@@ -270,15 +297,16 @@ class BITalino(object):
         batteryThreshold   Value of the battery threshold   int            :meth:`battery`
         digitalChannels    Value of all digital channels    Array of int   [I1 I2 O1 O2]
         =================  ================================ ============== =====================
-        """
+        '''
         if (self.isBitalino2):
-            if (self.started == False):
+            if not self.started:
                 # CommandState: 0  0  0  0  1  0  1  1
                 # Response: <A1 (2 bytes: 0..1023)> <A2 (2 bytes: 0..1023)> <A3 (2 bytes: 0..1023)>
                 #           <A4 (2 bytes: 0..1023)> <A5 (2 bytes: 0..1023)> <A6 (2 bytes: 0..1023)>
                 #           <ABAT (2 bytes: 0..1023)>
                 #           <Battery threshold (1 byte: 0..63)>
                 #           <Digital ports + CRC (1 byte: I1 I2 O1 O2 <CRC 4-bit>)>
+
                 self.send(11)
                 number_bytes = 16
                 Data = self.receive(number_bytes)
@@ -319,17 +347,22 @@ class BITalino(object):
         else:
             raise Exception(ExceptionCode.INVALID_VERSION)
 
-    def trigger(self, digitalArray = None):
-        """
-        :param digitalArray: array which acts on digital outputs according to the value: 0 or 1
+    def trigger(self, digitalArray=None):
+        '''
+        :param digitalArray: array which acts on digital outputs according
+            to the value: 0 or 1
         :type digitalArray: array, tuple or list of int
         :raises Exception: list of digital channel output is not valid
         :raises Exception: device not in acquisition (IDLE) (for BITalino 1.0)
 
-        Acts on digital output channels of the BITalino device. Triggering these digital outputs implies the use of the method :meth:`send`.
-        Digital Outputs can be set on IDLE or while in acquisition for BITalino 2.0.
+        Acts on digital output channels of the BITalino device. Triggering
+        these digital outputs implies the use of the method :meth:`send`.
+        Digital Outputs can be set on IDLE or while in acquisition
+        for BITalino 2.0.
 
-        Each position of the array *digitalArray* corresponds to a digital output, in ascending order. Possible values, types, configurations and examples for parameter *digitalArray*:
+        Each position of the array *digitalArray* corresponds to a digital
+        output, in ascending order. Possible values, types, configurations
+        and examples for parameter *digitalArray*:
 
         ===============  ============================================== ==============================================
         Meta             BITalino 1.0                                   BITalino 2.0
@@ -339,12 +372,12 @@ class BITalino(object):
         Configurations   4 values, one for each digital channel output  2 values, one for each digital channel output
         Examples         ``[1, 0, 1, 0]``                               ``[1, 0]``
         ===============  ============================================== ==============================================
-        """
+        '''
         arraySize = 2 if self.isBitalino2 else 4
         if not self.isBitalino2 and not self.started:
             raise Exception(ExceptionCode.DEVICE_NOT_IN_ACQUISITION)
         else:
-            digitalArray = [0 for i in range(arraySize)] if digitalArray == None else digitalArray
+            digitalArray = digitalArray or [0 for i in range(arraySize)]
             if isinstance(digitalArray, list):
                 digitalArray = digitalArray
             elif isinstance(digitalArray, tuple):
@@ -355,33 +388,43 @@ class BITalino(object):
                 raise Exception(ExceptionCode.INVALID_PARAMETER)
 
             pValues = [0, 1]
-            if len(digitalArray) != arraySize or any([item not in pValues or type(item)!=int for item in digitalArray]):
+            try:
+                assert len(digitalArray) == arraySize
+                assert all(isinstance(item, int) for item in digitalArray)
+                assert all(item in pValues for item in digitalArray)
+            except AssertionError:
                 raise Exception(ExceptionCode.INVALID_PARAMETER)
 
             if self.isBitalino2:
                 # CommandDigital: 1  0  1  1  O2 O1 1  1 - Set digital outputs
                 data = 179
             else:
-                # CommandDigital: 1  0  O4  O3  O2 O1 1  1 - Set digital outputs
+                # CommandDigital: 1  0  O4  O3  O2 O1 1  1
+                # - Set digital outputs
                 data = 3
 
-            for i,j in enumerate(digitalArray):
-                data = data | j<<(2+i)
+            for i, j in enumerate(digitalArray):
+                data = data | j << (2 + i)
             self.send(data)
 
     def read(self, nSamples=100):
-        """
+        '''
         :param nSamples: number of samples to acquire
         :type nSamples: int
         :returns: array with the acquired data
         :raises Exception: device not in acquisition (in IDLE)
-        :raises Exception: lost communication with the device when data is corrupted
+        :raises Exception: lost communication with the device when data
+            is corrupted
 
-        Acquires `nSamples` from BITalino. Reading samples from BITalino implies the use of the method :meth:`receive`.
+        Acquires `nSamples` from BITalino. Reading samples from BITalino
+        implies the use of the method :meth:`receive`.
 
-        Requiring a low number of samples (e.g. ``nSamples = 1``) may be computationally expensive; it is recommended to acquire batches of samples (e.g. ``nSamples = 100``).
+        Requiring a low number of samples (e.g. ``nSamples = 1``) may be
+        computationally expensive; it is recommended to acquire batches
+        of samples (e.g. ``nSamples = 100``).
 
-        The data acquired is organized in a matrix whose lines correspond to samples and the columns are as follows:
+        The data acquired is organized in a matrix whose lines correspond
+        to samples and the columns are as follows:
 
         * Sequence Number
         * 4 Digital Channels (always present)
@@ -402,11 +445,12 @@ class BITalino(object):
         ==================  ========= ========= ========= ========= ======== ======== ========
 
         .. note:: *The sequence number overflows at 15
-        """
-        if (self.started):
+        '''
+
+        if self.started:
             nChannels = len(self.analogChannels)
 
-            if nChannels <=4 :
+            if nChannels <= 4:
                 number_bytes = int(math.ceil((12.+10.*nChannels)/8.))
             else:
                 number_bytes = int(math.ceil((52.+6.*(nChannels-4))/8.))
@@ -449,13 +493,14 @@ class BITalino(object):
             raise Exception(ExceptionCode.DEVICE_NOT_IN_ACQUISITION)
 
     def version(self):
-        """
+        '''
         :returns: str with the version of BITalino
         :raises Exception: device in acquisition (not IDLE)
 
-        Retrieves the BITalino version. Retrieving the version implies the use of the methods :meth:`send` and :meth:`receive`.
-        """
-        if (self.started == False):
+        Retrieves the BITalino version. Retrieving the version implies the use
+        of the methods :meth:`send` and :meth:`receive`.
+        '''
+        if not self.started:
             # CommandVersion: 0  0  0  0  0  1  1  1
             self.send(7)
             version_str = ''
@@ -468,14 +513,17 @@ class BITalino(object):
             raise Exception(ExceptionCode.DEVICE_NOT_IDLE)
 
     def receive(self, nbytes):
-        """
+        '''
         :param nbytes: number of bytes to retrieve
         :type nbytes: int
         :return: string packed binary data
-        :raises Exception: lost communication with the device when timeout is reached
+        :raises Exception: lost communication with the device when
+            timeout is reached
 
-        Retrieves `nbytes` from the BITalino device and returns it as a string pack with length of `nbytes`. The timeout is defined on instantiation.
-        """
+        Retrieves `nbytes` from the BITalino device and returns it as
+        a string pack with length of `nbytes`.
+        The timeout is defined on instantiation.
+        '''
         data = ''
         if self.serial:
             while len(data) < nbytes:
@@ -501,10 +549,10 @@ if __name__ == '__main__':
     macAddress = "00:00:00:00:00:00"
 
     batteryThreshold = 30
-    acqChannels = [0,3]
+    acqChannels = [0, 3]
     samplingRate = 1000
     nSamples = 10
-    digitalOutput = [0,0,1,1]
+    digitalOutput = [0, 0, 1, 1]
 
     # Connect to BITalino
     device = BITalino(macAddress)
